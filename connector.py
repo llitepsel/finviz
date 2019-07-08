@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import requests
 from bs4 import BeautifulSoup as bs
 
@@ -86,10 +86,10 @@ RTS_CODES = ['UBER', 'CTVA', 'DD', 'CCK', 'RAMP', 'EPC', 'ARW', 'MTH', 'CLGX', '
              'ABBV', 'NRG', 'F', 'MU', 'MET', 'CVX']
 
 
-def request_page(url: str, page_url: str = "AAPL"):
+def request_page(url: str, ticker: str = "AAPL") -> Optional[bs]:
     """requesting html page from finviz using default AAPL """
     try:
-        payload = {"t": page_url}
+        payload = {"t": ticker}
         response = requests.get(url, params=payload)
         response.raise_for_status()
         return bs(response.content, 'lxml')
@@ -99,22 +99,22 @@ def request_page(url: str, page_url: str = "AAPL"):
         return
 
 
-def find_data(company_name: str, params: List[str]):
+def find_data(company_name: str, indicators: List[str]) -> Optional[dict]:
     """is looking for company's (like 'FB'/'AAPL') parametrs like ROE, P/E in html page """
     data = request_page(FINVIZ_QUOTE_URL, company_name)
+    if data is None:
+        return
+
     companys_multi = {}
-    try:
-        print(data.title.text)
+    print(data.title.text)
 
-        for param in params:
-            result = data.find(text=param)
-            multi = result.next_element.text
-            companys_multi[result] = multi
+    for indicator in indicators:
+        result = data.find(text=indicator)
+        if result:
+            companys_multi[result] = result.next_element.text
 
-        print(companys_multi)
-        return companys_multi
-    except Exception as e:
-        print(e)
+    print(companys_multi)
+    return companys_multi
 
 
 def screener(*params: str):
@@ -139,6 +139,6 @@ def screener(*params: str):
 
 
 if __name__ == "__main__":
-    screener("fa_pe_u15")
-    # find_data(company_name="FB", params=["P/E", "P/B", "ROE", "ROA", "P/S"])
+    # screener("fa_pe_u15")
+    find_data(company_name="FB", indicators=["P/E", "P/B", "ROE", "ROA", "P/S"])
 
