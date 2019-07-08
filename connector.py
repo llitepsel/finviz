@@ -93,7 +93,7 @@ def request_page(url: str, ticker: str = "AAPL") -> Optional[bs]:
         response = requests.get(url, params=payload)
         response.raise_for_status()
         return bs(response.content, 'lxml')
-    except requests.HTTPError as e:
+    except requests.RequestException as e:
         print("couldn't get page, status code: ", response.status_code)
         print(e)
         return
@@ -132,7 +132,7 @@ def screener(*params: str):
         response = requests.get(FINVIZ_SCREENER_URL, params=payload)
         response.raise_for_status()
 
-    except requests.HTTPError as e:
+    except requests.RequestException as e:
         print("couldn't get page, status code: ", response.status_code)
         print(e)
         return
