@@ -1,4 +1,9 @@
 import requests
+import re
+import string
+from openpyxl import Workbook
+from openpyxl import load_workbook
+import json
 from bs4 import BeautifulSoup as bs
 from yahoofinancials import YahooFinancials as yafin
 
@@ -83,8 +88,22 @@ def find_data(company: str, multiplicators: list):
 
 
 def get_urls(*params: str, num_of_links: int = 1) -> list:
-"""because of finviz's limitations, one url can not be used
-   Thats why ulrs are splitted if urls length is more than 2900"""
+    """because of finviz's limitations, one url can not be used
+    Thats why ulrs are splitted if urls length is more than 2900
+    fa_pe_u50      p/e<50
+    fa_pe_o10      p/e>10
+
+    fa_roe_u00   roe<00
+    fa_roe_o15   roe>15
+
+    fa_debteq_u15   debt/equity<15
+    fa_debteq_o10   debt/equity>10
+
+    fa_roi_o20    roi>20
+    fa_roi_u10    roi<10
+
+    fa_ps_u5    p/s<5
+    fa_ps_o1    P/S>1"""
     urls = []
     try:
         for i in range(num_of_links):
@@ -106,11 +125,68 @@ def get_urls(*params: str, num_of_links: int = 1) -> list:
 
 def get_balance(ticker):
     all_balance = yafin(ticker)
-    print (type(all_balance.get_financial_stmts("annual", "income")))
+    print (json.dumps(all_balance.get_financial_stmts("annual", "income"), sort_keys=True, indent=4))
+    print ((all_balance.get_operating_income()))
 
+def get_macro(company, docs):
+#    while True:
+#        docs = int(input("Choose:\n 1.Income-statement\n 2.Balance-sheet\n"))
+#        if docs == 1:
+#            docs = "income-statement"
+#            break
+#        if docs == 2:
+#            docs = "balance-sheet"
+#            break
+    req = requests.get("https://www.macrotrends.net/stocks/charts/"+company+"/"+docs)
+    data = bs(req.content, 'html.parser')
+    result = data.find_all('script')
+    var = (re.findall(r"^ var originalData = (.+);", str(result), re.M))
+    listik = json.loads(var[0])
+    last_dict = {}
+    for dictionary in listik:
+        del dictionary["popup_icon"]
+        changed_field_name = re.findall(r">(.+)</a>", dictionary["field_name"])
+        dictionary["field_name"] = changed_field_name
+        if dictionary.get("field_name") != []:
+            for key, value in sorted(dictionary.items()):
+                if key != "field_name":
+                    if not last_dict.get(key):
+                        last_dict[key] = {}
+                        field_name = dictionary["field_name"][0]
+                        last_dict[key][field_name] = value
+                    else:
+                        field_name = dictionary["field_name"][0]
+                        last_dict[key][field_name] = value
+    return last_dict
+
+def write_to_exel(our_dict, sheet):
+    book = load_workbook("test.xlsx")
+    ws = book.create_sheet(sheet)
+    i, j = 2, 2
+    for key in sorted(our_dict.keys()):
+        ws.cell(row = 1, column = j).value = key
+        for key1, value1 in sorted(our_dict[key].items()):
+            if ws.cell(row=i, column=1).value != key1:
+                ws.cell(row=i, column=1).value = key1
+                ws.cell(row=i, column=j).value = value1
+                i += 1
+            else:
+                ws.cell(row=i, column=j).value = value1
+                i += 1
+        i = 2
+        j += 1
+    book.save("test.xlsx")
 
 if __name__ == "__main__":
+#    my_dict = get_macro("https://www.macrotrends.net/stocks/charts/AAPL/apple/income-statement")
+    my_dict1 = get_macro("AAPL/apple", "income-statement")
+    my_dict2 = get_macro("AAPL/apple", "balance-sheet")
+    write_to_exel(my_dict1, "income-statement")
+    write_to_exel(my_dict2, "balance-sheet")
+#    for key,value in sorted(last_dict.items()):
+#        print (key, value)
+
 #    get_balance("AAPL")
 #    screener("fa_pe_u15")
-    print (get_urls("fa_pe_u15", "fa_debteq_u0.1","fa_roe_o25"))
+#    print (get_urls("fa_pe_u15", "fa_debteq_u0.1","fa_roe_o25"))
 #    find_data(company="FB", multiplicators=["P/E","P/B","ROE","ROA","P/S"])
